@@ -100,7 +100,7 @@ impl Dir {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 struct Pos {
     x: i32,
     y: i32,

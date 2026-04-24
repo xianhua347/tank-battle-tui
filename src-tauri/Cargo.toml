@@ -1,0 +1,19 @@
+[package]
+name = "tank-battle-desktop"
+version = "0.2.0"
+description = "Tauri desktop shell for the agents-generated Tank Battle game."
+authors = ["OpenAI Codex agents"]
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "tank_battle_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.2", features = [] }
+
+[dependencies]
+tauri = { version = "2.10.1", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -1,1 +1,7 @@
 /target
+/dist
+/node_modules
+/src-tauri/target
+/src-tauri/gen
+.vite
+.DS_Store

@@ -1,0 +1,280 @@
+:root {
+  color: #e8eef2;
+  background: #111417;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --panel: #171d20;
+  --line: #314047;
+  --green: #86d34f;
+  --red: #e84d3d;
+  --yellow: #f6ca4a;
+  --orange: #f47a2a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+button {
+  border: 1px solid #3d4b52;
+  color: #e8eef2;
+  background: #20282d;
+  cursor: pointer;
+  font: inherit;
+}
+
+button:hover {
+  border-color: #7f949c;
+  background: #2b363c;
+}
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 20px;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 42%),
+    radial-gradient(circle at 78% 12%, rgba(246, 202, 74, 0.12), transparent 26%), #111417;
+}
+
+.game-panel,
+.asset-panel {
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: rgba(23, 29, 32, 0.94);
+}
+
+.game-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+.topbar,
+.hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #8da0a8;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(1.7rem, 4vw, 3.2rem);
+  line-height: 0.95;
+}
+
+h2 {
+  font-size: 1.35rem;
+}
+
+.status {
+  min-width: 128px;
+  padding: 8px 12px;
+  border: 1px solid rgba(134, 211, 79, 0.45);
+  color: var(--green);
+  text-align: center;
+  font-weight: 800;
+}
+
+.status.paused {
+  border-color: rgba(246, 202, 74, 0.5);
+  color: var(--yellow);
+}
+
+.status.over {
+  border-color: rgba(232, 77, 61, 0.56);
+  color: var(--red);
+}
+
+.hud {
+  padding: 10px 12px;
+  border: 1px solid #29353a;
+  background: #101518;
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.metric-label {
+  color: #93a2a8;
+}
+
+.metric strong {
+  color: var(--yellow);
+}
+
+.heart {
+  color: var(--red);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.heart.empty {
+  color: #4d5559;
+}
+
+.board-wrap {
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #2b383d;
+  background: #0b0f11;
+}
+
+.board {
+  width: min(100%, 980px);
+  aspect-ratio: 42 / 22;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
+  margin: 0 auto;
+  border: 2px solid #46565d;
+  background: #15191b;
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  color: transparent;
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-weight: 900;
+  line-height: 1;
+  user-select: none;
+}
+
+.cell.wall {
+  color: #d1d4d0;
+  background: repeating-linear-gradient(0deg, #666 0 4px, #909090 4px 8px);
+}
+
+.cell.player {
+  color: #142209;
+  background: var(--green);
+}
+
+.cell.enemy {
+  color: #230a08;
+  background: var(--red);
+}
+
+.cell.playerBullet {
+  color: #0f0f07;
+  background: var(--yellow);
+}
+
+.cell.enemyBullet {
+  color: #fff0e4;
+  background: #b22e2b;
+}
+
+.cell.explosion {
+  color: #fff6b4;
+  background: var(--orange);
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(44px, 1fr));
+  gap: 8px;
+}
+
+.controls button {
+  min-height: 42px;
+  font-weight: 800;
+}
+
+.controls .fire {
+  color: #101010;
+  background: var(--yellow);
+  border-color: #f4d66e;
+}
+
+.asset-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.asset-copy {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.asset-copy p:last-child {
+  color: #b7c4c9;
+  line-height: 1.55;
+}
+
+.asset-panel img {
+  width: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+@media (max-width: 980px) {
+  .shell {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .asset-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar,
+  .hud {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .status {
+    width: 100%;
+  }
+
+  .controls {
+    grid-template-columns: repeat(4, minmax(44px, 1fr));
+  }
+}
