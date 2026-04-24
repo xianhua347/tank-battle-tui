@@ -34,6 +34,7 @@ export interface Explosion {
 export interface Cell {
   id: string;
   kind: CellKind;
+  dir?: Direction;
   symbol: string;
 }
 
@@ -147,23 +148,28 @@ export function updateGame(state: GameState): GameState {
 
 export function toCells(state: GameState): Cell[] {
   const cells: Cell[] = [];
-  const byPos = new Map<string, CellKind>();
+  const byPos = new Map<string, Pick<Cell, "kind" | "dir">>();
 
-  for (const wall of state.walls) byPos.set(wall, "wall");
-  for (const bullet of state.bullets)
-    byPos.set(key(bullet.pos), bullet.owner === "player" ? "playerBullet" : "enemyBullet");
-  for (const explosion of state.explosions) byPos.set(key(explosion.pos), "explosion");
-  for (const enemy of state.enemies) byPos.set(key(enemy.pos), "enemy");
-  byPos.set(key(state.player.pos), "player");
+  for (const wall of state.walls) byPos.set(wall, { kind: "wall" });
+  for (const bullet of state.bullets) {
+    byPos.set(key(bullet.pos), {
+      kind: bullet.owner === "player" ? "playerBullet" : "enemyBullet",
+      dir: bullet.dir,
+    });
+  }
+  for (const explosion of state.explosions) byPos.set(key(explosion.pos), { kind: "explosion" });
+  for (const enemy of state.enemies) byPos.set(key(enemy.pos), { kind: "enemy", dir: enemy.dir });
+  byPos.set(key(state.player.pos), { kind: "player", dir: state.player.dir });
 
   for (let y = 0; y < state.height; y += 1) {
     for (let x = 0; x < state.width; x += 1) {
       const pos = { x, y };
-      const kind = byPos.get(key(pos)) ?? "empty";
+      const cell = byPos.get(key(pos)) ?? { kind: "empty" as const };
       cells.push({
         id: `${x}-${y}`,
-        kind,
-        symbol: symbolFor(kind, pos, state),
+        kind: cell.kind,
+        dir: cell.dir,
+        symbol: symbolFor(cell.kind, pos, state),
       });
     }
   }
@@ -210,7 +216,7 @@ function updateEnemies(state: GameState): void {
     enemy.dir = dir;
 
     if (
-      inBounds(next) &&
+      tankInBounds(next) &&
       !state.walls.has(key(next)) &&
       !samePos(next, state.player.pos) &&
       (!occupied.has(key(next)) || samePos(next, enemy.pos))
@@ -322,7 +328,7 @@ function spawnWave(state: GameState): void {
 }
 
 function canEnter(state: GameState, pos: Pos, mover: Owner): boolean {
-  if (!inBounds(pos) || state.walls.has(key(pos))) return false;
+  if (!tankInBounds(pos) || state.walls.has(key(pos))) return false;
   if (mover === "player") return !state.enemies.some((enemy) => samePos(enemy.pos, pos));
   return !samePos(state.player.pos, pos) && !state.enemies.some((enemy) => samePos(enemy.pos, pos));
 }
@@ -365,6 +371,10 @@ function samePos(a: Pos, b: Pos): boolean {
 
 function inBounds(pos: Pos): boolean {
   return pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height;
+}
+
+function tankInBounds(pos: Pos): boolean {
+  return pos.x > 0 && pos.x < width - 1 && pos.y > 0 && pos.y < height - 1;
 }
 
 function key(pos: Pos): string {

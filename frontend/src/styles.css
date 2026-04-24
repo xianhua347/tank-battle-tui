@@ -1,6 +1,6 @@
 :root {
-  color: #e8eef2;
-  background: #111417;
+  color: #ecf1e8;
+  background: #090d0e;
   font-family:
     Inter,
     ui-sans-serif,
@@ -12,8 +12,8 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --panel: #171d20;
-  --line: #314047;
+  --panel: #141b1a;
+  --line: #314543;
   --green: #86d34f;
   --red: #e84d3d;
   --yellow: #f6ca4a;
@@ -29,6 +29,10 @@ body,
 #app {
   min-height: 100%;
   margin: 0;
+}
+
+body {
+  overflow-x: hidden;
 }
 
 button {
@@ -47,19 +51,21 @@ button:hover {
 .shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   gap: 20px;
   padding: 24px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 42%),
-    radial-gradient(circle at 78% 12%, rgba(246, 202, 74, 0.12), transparent 26%), #111417;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 38%),
+    radial-gradient(circle at 78% 12%, rgba(246, 202, 74, 0.1), transparent 25%),
+    linear-gradient(135deg, rgba(134, 211, 79, 0.08) 0 1px, transparent 1px 18px), #090d0e;
 }
 
 .game-panel,
 .asset-panel {
   min-width: 0;
-  border: 1px solid var(--line);
-  background: rgba(23, 29, 32, 0.94);
+  border: 1px solid rgba(91, 124, 119, 0.55);
+  background: rgba(18, 25, 24, 0.96);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
 }
 
 .game-panel {
@@ -95,6 +101,8 @@ p {
 h1 {
   font-size: clamp(1.7rem, 4vw, 3.2rem);
   line-height: 0.95;
+  color: #f7f4df;
+  text-shadow: 0 2px 0 #24302e;
 }
 
 h2 {
@@ -104,8 +112,9 @@ h2 {
 .status {
   min-width: 128px;
   padding: 8px 12px;
-  border: 1px solid rgba(134, 211, 79, 0.45);
-  color: var(--green);
+  border: 1px solid rgba(134, 211, 79, 0.54);
+  color: #a8f072;
+  background: #101713;
   text-align: center;
   font-weight: 800;
 }
@@ -122,8 +131,8 @@ h2 {
 
 .hud {
   padding: 10px 12px;
-  border: 1px solid #29353a;
-  background: #101518;
+  border: 1px solid #2e403b;
+  background: linear-gradient(180deg, #16201d, #0f1514);
 }
 
 .metric {
@@ -141,74 +150,142 @@ h2 {
   color: var(--yellow);
 }
 
-.heart {
-  color: var(--red);
-  font-size: 1.35rem;
-  line-height: 1;
+.hud-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
-.heart.empty {
-  color: #4d5559;
+.heart {
+  width: 34px;
+  height: 30px;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
 .board-wrap {
   overflow: auto;
-  padding: 12px;
-  border: 1px solid #2b383d;
-  background: #0b0f11;
+  padding: 14px;
+  border: 1px solid #344944;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent),
+    repeating-linear-gradient(0deg, #0b100f 0 22px, #0d1513 22px 44px);
 }
 
 .board {
-  width: min(100%, 980px);
+  width: min(100%, 1060px);
   aspect-ratio: 42 / 22;
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
   grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
   margin: 0 auto;
-  border: 2px solid #46565d;
-  background: #15191b;
+  overflow: hidden;
+  border: 3px solid #637570;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(95, 108, 95, 0.18), transparent 22%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px), #101715;
+  background-size:
+    auto,
+    calc(100% / var(--cols)) calc(100% / var(--rows)),
+    calc(100% / var(--cols)) calc(100% / var(--rows)),
+    auto;
+  box-shadow:
+    inset 0 0 0 1px #0b0f0e,
+    inset 0 0 42px rgba(0, 0, 0, 0.55);
 }
 
 .cell {
+  position: relative;
   display: grid;
   place-items: center;
   min-width: 0;
   min-height: 0;
-  color: transparent;
-  font-family: "Cascadia Mono", "Consolas", monospace;
-  font-weight: 900;
-  line-height: 1;
+  overflow: visible;
   user-select: none;
 }
 
-.cell.wall {
-  color: #d1d4d0;
-  background: repeating-linear-gradient(0deg, #666 0 4px, #909090 4px 8px);
+.sprite {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.48));
 }
 
-.cell.player {
-  color: #142209;
-  background: var(--green);
+.cell.wall .sprite {
+  width: 128%;
+  height: 128%;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.42));
 }
 
+.cell.player,
 .cell.enemy {
-  color: #230a08;
-  background: var(--red);
+  z-index: 3;
 }
 
-.cell.playerBullet {
-  color: #0f0f07;
-  background: var(--yellow);
+.cell.player .sprite {
+  width: 190%;
+  height: 190%;
+  transform-origin: center;
 }
 
+.cell.enemy .sprite {
+  width: 168%;
+  height: 168%;
+}
+
+.cell.player.down .sprite {
+  transform: rotate(180deg);
+}
+
+.cell.player.left .sprite {
+  transform: rotate(-90deg);
+}
+
+.cell.player.right .sprite {
+  transform: rotate(90deg);
+}
+
+.cell.playerBullet,
 .cell.enemyBullet {
-  color: #fff0e4;
-  background: #b22e2b;
+  z-index: 4;
+}
+
+.cell.playerBullet .sprite,
+.cell.enemyBullet .sprite {
+  width: 116%;
+  height: 116%;
+  transform-origin: center;
+  filter: drop-shadow(0 0 7px rgba(246, 202, 74, 0.75));
+}
+
+.cell.playerBullet.up .sprite,
+.cell.enemyBullet.up .sprite {
+  transform: rotate(-90deg);
+}
+
+.cell.playerBullet.down .sprite,
+.cell.enemyBullet.down .sprite {
+  transform: rotate(90deg);
+}
+
+.cell.playerBullet.left .sprite,
+.cell.enemyBullet.left .sprite {
+  transform: rotate(180deg);
 }
 
 .cell.explosion {
-  color: #fff6b4;
-  background: var(--orange);
+  z-index: 5;
+}
+
+.cell.explosion .sprite {
+  width: 210%;
+  height: 210%;
+  animation: pop 180ms ease-out both;
+  filter: drop-shadow(0 0 12px rgba(244, 122, 42, 0.8));
 }
 
 .controls {
@@ -220,6 +297,8 @@ h2 {
 .controls button {
   min-height: 42px;
   font-weight: 800;
+  border-color: #40564f;
+  background: #17211e;
 }
 
 .controls .fire {
@@ -250,6 +329,20 @@ h2 {
   width: 100%;
   display: block;
   object-fit: cover;
+  image-rendering: pixelated;
+  opacity: 0.96;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0.35;
+    transform: scale(0.55);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @media (max-width: 980px) {

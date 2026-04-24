@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, shallowRef } from "vue";
 
+import bulletUrl from "../../assets/sprites/bullet.png";
+import enemyDownUrl from "../../assets/sprites/enemy-down.png";
+import enemyLeftUrl from "../../assets/sprites/enemy-left.png";
+import enemyRightUrl from "../../assets/sprites/enemy-right.png";
+import enemyUpUrl from "../../assets/sprites/enemy-up.png";
+import explosionUrl from "../../assets/sprites/explosion.png";
+import heartEmptyUrl from "../../assets/sprites/heart-empty.png";
+import heartUrl from "../../assets/sprites/heart.png";
+import playerUrl from "../../assets/sprites/player-up.png";
 import spriteSheetUrl from "../../assets/sprite-sheet-reference.png";
+import starUrl from "../../assets/sprites/star.png";
+import wallUrl from "../../assets/sprites/wall.png";
 import {
   createGame,
   movePlayer,
@@ -9,6 +20,7 @@ import {
   toCells,
   togglePause,
   updateGame,
+  type Cell,
   type Direction,
 } from "./game";
 
@@ -21,6 +33,20 @@ const stateLabel = computed(() => {
   if (game.value.paused) return "PAUSED";
   return "RUNNING";
 });
+
+function spriteFor(cell: Cell): string | undefined {
+  if (cell.kind === "wall") return wallUrl;
+  if (cell.kind === "player") return playerUrl;
+  if (cell.kind === "enemy") {
+    if (cell.dir === "up") return enemyUpUrl;
+    if (cell.dir === "left") return enemyLeftUrl;
+    if (cell.dir === "right") return enemyRightUrl;
+    return enemyDownUrl;
+  }
+  if (cell.kind === "playerBullet" || cell.kind === "enemyBullet") return bulletUrl;
+  if (cell.kind === "explosion") return explosionUrl;
+  return undefined;
+}
 
 let timer: number | undefined;
 
@@ -86,16 +112,17 @@ onBeforeUnmount(() => {
       <div class="hud" aria-label="Game status">
         <div class="metric">
           <span class="metric-label">Score</span>
+          <img class="hud-icon star" :src="starUrl" alt="" />
           <strong>{{ game.score }}</strong>
         </div>
         <div class="metric hearts" aria-label="Lives">
-          <span
+          <img
             class="heart"
             v-for="(filled, index) in hearts"
             :key="index"
-            :class="{ empty: !filled }"
-            >♥</span
-          >
+            :src="filled ? heartUrl : heartEmptyUrl"
+            alt=""
+          />
         </div>
         <div class="metric">
           <span class="metric-label">Enemies</span>
@@ -114,10 +141,10 @@ onBeforeUnmount(() => {
             v-for="cell in cells"
             :key="cell.id"
             class="cell"
-            :class="cell.kind"
+            :class="[cell.kind, cell.dir]"
             role="gridcell"
           >
-            {{ cell.symbol }}
+            <img v-if="spriteFor(cell)" class="sprite" :src="spriteFor(cell)" alt="" />
           </span>
         </div>
       </div>

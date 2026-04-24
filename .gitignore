@@ -5,3 +5,5 @@
 /src-tauri/gen
 .vite
 .DS_Store
+.playwright-cli
+/output
