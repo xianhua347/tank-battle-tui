@@ -111,7 +111,7 @@ export function shoot(state: GameState): GameState {
   if (next.paused || next.gameOver || next.player.cooldown > 0) return next;
 
   next.bullets.push({
-    pos: step(next.player.pos, next.player.dir),
+    pos: bulletSpawnPos(next.player),
     dir: next.player.dir,
     owner: "player",
   });
@@ -178,13 +178,16 @@ export function toCells(state: GameState): Cell[] {
 }
 
 function seedMap(state: GameState): void {
-  for (let i = 0; i < 52; i += 1) {
+  for (let i = 0; i < 40; i += 1) {
     const pos = {
       x: randomInt(2, width - 3),
       y: randomInt(3, height - 5),
     };
 
-    if (Math.abs(pos.x - state.player.pos.x) > 3 || Math.abs(pos.y - state.player.pos.y) > 3) {
+    if (
+      !tankFootprint(state.player.pos).some((playerPos) => samePos(playerPos, pos)) &&
+      (Math.abs(pos.x - state.player.pos.x) > 3 || Math.abs(pos.y - state.player.pos.y) > 3)
+    ) {
       state.walls.add(key(pos));
     }
   }
@@ -195,7 +198,7 @@ function seedMap(state: GameState): void {
       y: 2 + Math.floor(i / 4) * 3,
     };
 
-    if (!state.walls.has(key(pos))) {
+    if (canTankEnter(state, pos, "enemy")) {
       state.enemies.push({
         pos,
         dir: "down",
@@ -206,29 +209,20 @@ function seedMap(state: GameState): void {
 }
 
 function updateEnemies(state: GameState): void {
-  const occupied = new Set(state.enemies.map((enemy) => key(enemy.pos)));
-
-  for (const enemy of state.enemies) {
+  for (const [index, enemy] of state.enemies.entries()) {
     let dir = enemy.dir;
     if (Math.random() < 0.18) dir = dirs[randomInt(0, dirs.length - 1)];
 
     const next = step(enemy.pos, dir);
     enemy.dir = dir;
 
-    if (
-      tankInBounds(next) &&
-      !state.walls.has(key(next)) &&
-      !samePos(next, state.player.pos) &&
-      (!occupied.has(key(next)) || samePos(next, enemy.pos))
-    ) {
-      occupied.delete(key(enemy.pos));
+    if (canTankEnter(state, next, "enemy", index)) {
       enemy.pos = next;
-      occupied.add(key(enemy.pos));
     }
 
     if (enemy.cooldown === 0 && Math.random() < 0.42) {
       state.bullets.push({
-        pos: step(enemy.pos, enemy.dir),
+        pos: bulletSpawnPos(enemy),
         dir: enemy.dir,
         owner: "enemy",
       });
@@ -245,23 +239,17 @@ function updateBullets(state: GameState): void {
   for (const bullet of state.bullets) {
     if (!inBounds(bullet.pos)) continue;
 
-    if (resolveHit(state, bullet.pos, bullet.owner, killedEnemies)) continue;
+    const currentHit = resolveHit(state, bullet.pos, bullet.owner, killedEnemies);
+    if (currentHit === "player") damagedPlayer = true;
+    if (currentHit !== "none") continue;
 
     const next = step(bullet.pos, bullet.dir);
     if (!inBounds(next)) continue;
-    if (resolveHit(state, next, bullet.owner, killedEnemies)) continue;
+    const nextHit = resolveHit(state, next, bullet.owner, killedEnemies);
+    if (nextHit === "player") damagedPlayer = true;
+    if (nextHit !== "none") continue;
 
     nextBullets.push({ ...bullet, pos: next });
-  }
-
-  for (const bullet of state.bullets) {
-    if (
-      bullet.owner === "enemy" &&
-      (samePos(bullet.pos, state.player.pos) ||
-        samePos(step(bullet.pos, bullet.dir), state.player.pos))
-    ) {
-      damagedPlayer = true;
-    }
   }
 
   state.enemies = state.enemies.filter((_, index) => !killedEnemies.has(index));
@@ -271,33 +259,48 @@ function updateBullets(state: GameState): void {
     state.lives = Math.max(0, state.lives - 1);
     state.player.pos = { x: Math.floor(width / 2), y: height - 3 };
     state.player.dir = "up";
+    clearTankSpace(state, state.player.pos);
     if (state.lives === 0) state.gameOver = true;
   }
 }
 
-function resolveHit(state: GameState, pos: Pos, owner: Owner, killedEnemies: Set<number>): boolean {
+type HitResult = "none" | "blocked" | "player";
+
+function resolveHit(
+  state: GameState,
+  pos: Pos,
+  owner: Owner,
+  killedEnemies: Set<number>,
+): HitResult {
   const posKey = key(pos);
   if (state.walls.delete(posKey)) {
     state.explosions.push({ pos, age: 0 });
-    return true;
+    return "blocked";
   }
 
   if (owner === "player") {
-    const enemyIndex = state.enemies.findIndex((enemy) => samePos(enemy.pos, pos));
+    const enemyIndex = state.enemies.findIndex(
+      (enemy, index) =>
+        !killedEnemies.has(index) &&
+        tankFootprint(enemy.pos).some((enemyPos) => samePos(enemyPos, pos)),
+    );
     if (enemyIndex >= 0) {
       killedEnemies.add(enemyIndex);
       state.score += 100;
       state.explosions.push({ pos, age: 0 });
-      return true;
+      return "blocked";
     }
   }
 
-  if (owner === "enemy" && samePos(state.player.pos, pos)) {
+  if (
+    owner === "enemy" &&
+    tankFootprint(state.player.pos).some((playerPos) => samePos(playerPos, pos))
+  ) {
     state.explosions.push({ pos, age: 0 });
-    return true;
+    return "player";
   }
 
-  return false;
+  return "none";
 }
 
 function updateExplosions(state: GameState): void {
@@ -328,9 +331,7 @@ function spawnWave(state: GameState): void {
 }
 
 function canEnter(state: GameState, pos: Pos, mover: Owner): boolean {
-  if (!tankInBounds(pos) || state.walls.has(key(pos))) return false;
-  if (mover === "player") return !state.enemies.some((enemy) => samePos(enemy.pos, pos));
-  return !samePos(state.player.pos, pos) && !state.enemies.some((enemy) => samePos(enemy.pos, pos));
+  return canTankEnter(state, pos, mover);
 }
 
 function symbolFor(kind: CellKind, pos: Pos, state: GameState): string {
@@ -365,16 +366,63 @@ function step(pos: Pos, dir: Direction): Pos {
   return { x: pos.x + 1, y: pos.y };
 }
 
+function bulletSpawnPos(tank: Tank): Pos {
+  return step(step(tank.pos, tank.dir), tank.dir);
+}
+
+function tankFootprint(pos: Pos): Pos[] {
+  return [
+    pos,
+    { x: pos.x, y: pos.y - 1 },
+    { x: pos.x, y: pos.y + 1 },
+    { x: pos.x - 1, y: pos.y },
+    { x: pos.x + 1, y: pos.y },
+  ];
+}
+
+function canTankEnter(
+  state: GameState,
+  pos: Pos,
+  mover: Owner,
+  ignoreEnemyIndex?: number,
+): boolean {
+  const footprint = tankFootprint(pos);
+  if (
+    footprint.some((footprintPos) => !inBounds(footprintPos) || state.walls.has(key(footprintPos)))
+  ) {
+    return false;
+  }
+
+  if (
+    mover === "enemy" &&
+    tankFootprint(state.player.pos).some((playerPos) =>
+      footprint.some((footprintPos) => samePos(footprintPos, playerPos)),
+    )
+  ) {
+    return false;
+  }
+
+  return !state.enemies.some((enemy, index) => {
+    if (index === ignoreEnemyIndex) return false;
+    const enemyFootprint = tankFootprint(enemy.pos);
+    return footprint.some((footprintPos) =>
+      enemyFootprint.some((enemyPos) => samePos(footprintPos, enemyPos)),
+    );
+  });
+}
+
+function clearTankSpace(state: GameState, pos: Pos): void {
+  for (const footprintPos of tankFootprint(pos)) {
+    state.walls.delete(key(footprintPos));
+  }
+}
+
 function samePos(a: Pos, b: Pos): boolean {
   return a.x === b.x && a.y === b.y;
 }
 
 function inBounds(pos: Pos): boolean {
   return pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height;
-}
-
-function tankInBounds(pos: Pos): boolean {
-  return pos.x > 0 && pos.x < width - 1 && pos.y > 0 && pos.y < height - 1;
 }
 
 function key(pos: Pos): string {
