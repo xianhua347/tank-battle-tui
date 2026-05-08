@@ -188,12 +188,14 @@ impl App {
     fn reset_map(&mut self) {
         let mut rng = thread_rng();
 
-        for _ in 0..52 {
+        for _ in 0..40 {
             let pos = Pos {
                 x: rng.gen_range(2..WIDTH - 2),
                 y: rng.gen_range(3..HEIGHT - 4),
             };
-            if (pos.x - self.player.pos.x).abs() > 3 || (pos.y - self.player.pos.y).abs() > 3 {
+            if !tank_footprint(self.player.pos).contains(&pos)
+                && ((pos.x - self.player.pos.x).abs() > 3 || (pos.y - self.player.pos.y).abs() > 3)
+            {
                 self.walls.insert(pos);
             }
         }
@@ -202,7 +204,7 @@ impl App {
             let x = 4 + (i as i32 * 7) % (WIDTH - 8);
             let y = 2 + (i as i32 / 4) * 3;
             let pos = Pos { x, y };
-            if !self.walls.contains(&pos) {
+            if self.can_enter(pos, Some(Owner::Enemy)) {
                 self.enemies.push(Tank {
                     pos,
                     dir: Dir::Down,
@@ -233,7 +235,9 @@ impl App {
             KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => self.move_player(Dir::Up),
             KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => self.move_player(Dir::Down),
             KeyCode::Left | KeyCode::Char('a') | KeyCode::Char('A') => self.move_player(Dir::Left),
-            KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => self.move_player(Dir::Right),
+            KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => {
+                self.move_player(Dir::Right)
+            }
             _ => {}
         }
 
@@ -278,7 +282,7 @@ impl App {
         }
 
         self.bullets.push(Bullet {
-            pos: self.player.pos.step(self.player.dir),
+            pos: bullet_spawn_pos(&self.player),
             dir: self.player.dir,
             owner: Owner::Player,
         });
@@ -287,7 +291,6 @@ impl App {
 
     fn update_enemies(&mut self) {
         let mut rng = thread_rng();
-        let occupied: HashSet<Pos> = self.enemies.iter().map(|enemy| enemy.pos).collect();
         let mut actions = Vec::new();
 
         for (index, enemy) in self.enemies.iter().enumerate() {
@@ -297,10 +300,7 @@ impl App {
             }
 
             let next = enemy.pos.step(dir);
-            let can_move = in_bounds(next)
-                && !self.walls.contains(&next)
-                && next != self.player.pos
-                && (!occupied.contains(&next) || next == enemy.pos);
+            let can_move = self.can_tank_enter(next, Owner::Enemy, Some(index));
             let should_shoot = enemy.cooldown == 0 && rng.gen_bool(0.42);
             actions.push((index, dir, can_move, should_shoot));
         }
@@ -313,7 +313,7 @@ impl App {
             }
 
             if should_shoot {
-                let pos = self.enemies[index].pos.step(self.enemies[index].dir);
+                let pos = bullet_spawn_pos(&self.enemies[index]);
                 self.bullets.push(Bullet {
                     pos,
                     dir: self.enemies[index].dir,
@@ -329,45 +329,19 @@ impl App {
         let mut killed_enemies = HashSet::new();
         let mut damaged_player = false;
 
-        for bullet in &self.bullets {
+        let bullets = self.bullets.clone();
+
+        for bullet in &bullets {
             if !in_bounds(bullet.pos) {
                 continue;
             }
 
-            if self.walls.remove(&bullet.pos) {
-                self.explosions.push(Explosion {
-                    pos: bullet.pos,
-                    age: 0,
-                });
-                continue;
-            }
-
-            match bullet.owner {
-                Owner::Player => {
-                    if let Some((index, _)) = self
-                        .enemies
-                        .iter()
-                        .enumerate()
-                        .find(|(_, enemy)| enemy.pos == bullet.pos)
-                    {
-                        killed_enemies.insert(index);
-                        self.score += 100;
-                        self.explosions.push(Explosion {
-                            pos: bullet.pos,
-                            age: 0,
-                        });
-                        continue;
-                    }
-                }
-                Owner::Enemy => {
-                    if bullet.pos == self.player.pos {
-                        damaged_player = true;
-                        self.explosions.push(Explosion {
-                            pos: bullet.pos,
-                            age: 0,
-                        });
-                        continue;
-                    }
+            match self.resolve_hit(bullet.pos, bullet.owner, &mut killed_enemies) {
+                HitResult::None => {}
+                HitResult::Blocked => continue,
+                HitResult::Player => {
+                    damaged_player = true;
+                    continue;
                 }
             }
 
@@ -377,31 +351,12 @@ impl App {
                 continue;
             }
 
-            if self.walls.remove(&next) {
-                self.explosions.push(Explosion { pos: next, age: 0 });
-                continue;
-            }
-
-            match bullet.owner {
-                Owner::Player => {
-                    if let Some((index, _)) = self
-                        .enemies
-                        .iter()
-                        .enumerate()
-                        .find(|(_, enemy)| enemy.pos == next)
-                    {
-                        killed_enemies.insert(index);
-                        self.score += 100;
-                        self.explosions.push(Explosion { pos: next, age: 0 });
-                        continue;
-                    }
-                }
-                Owner::Enemy => {
-                    if next == self.player.pos {
-                        damaged_player = true;
-                        self.explosions.push(Explosion { pos: next, age: 0 });
-                        continue;
-                    }
+            match self.resolve_hit(next, bullet.owner, &mut killed_enemies) {
+                HitResult::None => {}
+                HitResult::Blocked => continue,
+                HitResult::Player => {
+                    damaged_player = true;
+                    continue;
                 }
             }
 
@@ -427,6 +382,7 @@ impl App {
                 y: HEIGHT - 3,
             };
             self.player.dir = Dir::Up;
+            self.clear_tank_space(self.player.pos);
             if self.lives == 0 {
                 self.game_over = true;
             }
@@ -450,7 +406,7 @@ impl App {
                     x: rng.gen_range(2..WIDTH - 2),
                     y: rng.gen_range(1..HEIGHT / 2),
                 };
-                if self.can_enter(pos, Some(Owner::Enemy)) && pos != self.player.pos {
+                if self.can_enter(pos, Some(Owner::Enemy)) {
                     self.enemies.push(Tank {
                         pos,
                         dir: Dir::Down,
@@ -463,18 +419,77 @@ impl App {
     }
 
     fn can_enter(&self, pos: Pos, mover: Option<Owner>) -> bool {
-        if !in_bounds(pos) || self.walls.contains(&pos) {
+        match mover {
+            Some(owner) => self.can_tank_enter(pos, owner, None),
+            None => in_bounds(pos) && !self.walls.contains(&pos),
+        }
+    }
+
+    fn can_tank_enter(&self, pos: Pos, mover: Owner, ignore_enemy_index: Option<usize>) -> bool {
+        let footprint = tank_footprint(pos);
+        if footprint
+            .iter()
+            .any(|footprint_pos| !in_bounds(*footprint_pos) || self.walls.contains(footprint_pos))
+        {
             return false;
         }
 
-        match mover {
-            Some(Owner::Player) => !self.enemies.iter().any(|enemy| enemy.pos == pos),
-            Some(Owner::Enemy) => {
-                pos != self.player.pos && !self.enemies.iter().any(|enemy| enemy.pos == pos)
+        if mover == Owner::Enemy && footprints_overlap(&footprint, &tank_footprint(self.player.pos))
+        {
+            return false;
+        }
+
+        !self.enemies.iter().enumerate().any(|(index, enemy)| {
+            Some(index) != ignore_enemy_index
+                && footprints_overlap(&footprint, &tank_footprint(enemy.pos))
+        })
+    }
+
+    fn resolve_hit(
+        &mut self,
+        pos: Pos,
+        owner: Owner,
+        killed_enemies: &mut HashSet<usize>,
+    ) -> HitResult {
+        if self.walls.remove(&pos) {
+            self.explosions.push(Explosion { pos, age: 0 });
+            return HitResult::Blocked;
+        }
+
+        match owner {
+            Owner::Player => {
+                if let Some((index, _)) = self.enemies.iter().enumerate().find(|(index, enemy)| {
+                    !killed_enemies.contains(index) && tank_footprint(enemy.pos).contains(&pos)
+                }) {
+                    killed_enemies.insert(index);
+                    self.score += 100;
+                    self.explosions.push(Explosion { pos, age: 0 });
+                    return HitResult::Blocked;
+                }
             }
-            None => true,
+            Owner::Enemy => {
+                if tank_footprint(self.player.pos).contains(&pos) {
+                    self.explosions.push(Explosion { pos, age: 0 });
+                    return HitResult::Player;
+                }
+            }
+        }
+
+        HitResult::None
+    }
+
+    fn clear_tank_space(&mut self, pos: Pos) {
+        for footprint_pos in tank_footprint(pos) {
+            self.walls.remove(&footprint_pos);
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HitResult {
+    None,
+    Blocked,
+    Player,
 }
 
 fn random_dir(rng: &mut impl Rng) -> Dir {
@@ -484,6 +499,36 @@ fn random_dir(rng: &mut impl Rng) -> Dir {
         2 => Dir::Left,
         _ => Dir::Right,
     }
+}
+
+fn bullet_spawn_pos(tank: &Tank) -> Pos {
+    tank.pos.step(tank.dir).step(tank.dir)
+}
+
+fn tank_footprint(pos: Pos) -> [Pos; 5] {
+    [
+        pos,
+        Pos {
+            x: pos.x,
+            y: pos.y - 1,
+        },
+        Pos {
+            x: pos.x,
+            y: pos.y + 1,
+        },
+        Pos {
+            x: pos.x - 1,
+            y: pos.y,
+        },
+        Pos {
+            x: pos.x + 1,
+            y: pos.y,
+        },
+    ]
+}
+
+fn footprints_overlap(a: &[Pos], b: &[Pos]) -> bool {
+    a.iter().any(|left| b.iter().any(|right| left == right))
 }
 
 fn in_bounds(pos: Pos) -> bool {
@@ -524,8 +569,19 @@ fn draw(frame: &mut Frame<'_>, app: &App) {
     }
 
     for enemy in &app.enemies {
+        for footprint_pos in tank_footprint(enemy.pos) {
+            if in_bounds(footprint_pos) {
+                cells[footprint_pos.y as usize][footprint_pos.x as usize] = 'E';
+            }
+        }
         if in_bounds(enemy.pos) {
             cells[enemy.pos.y as usize][enemy.pos.x as usize] = enemy.dir.symbol();
+        }
+    }
+
+    for footprint_pos in tank_footprint(app.player.pos) {
+        if in_bounds(footprint_pos) {
+            cells[footprint_pos.y as usize][footprint_pos.x as usize] = 'P';
         }
     }
 
@@ -551,6 +607,16 @@ fn draw(frame: &mut Frame<'_>, app: &App) {
                         ),
                         'x' => Span::styled("x", Style::default().fg(Color::LightRed)),
                         '.' => Span::styled(".", Style::default().fg(Color::Yellow)),
+                        'P' => Span::styled(
+                            "+",
+                            Style::default()
+                                .fg(Color::Green)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        'E' => Span::styled(
+                            "+",
+                            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                        ),
                         '^' | 'v' | '<' | '>' => Span::styled(
                             cell.to_string(),
                             Style::default()
@@ -593,9 +659,7 @@ fn draw(frame: &mut Frame<'_>, app: &App) {
             Span::styled("Lives ", Style::default().fg(Color::Gray)),
             Span::styled(
                 hearts(app.lives),
-                Style::default()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             ),
             Span::raw("   "),
             Span::styled("Enemies ", Style::default().fg(Color::Gray)),
@@ -615,4 +679,49 @@ fn hearts(lives: u8) -> String {
     let full = lives.min(3) as usize;
     let empty = 3usize.saturating_sub(full);
     format!("{}{}", "<3 ".repeat(full), "-- ".repeat(empty))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tank_volume_blocks_boundary_movement() {
+        let mut app = App::new();
+        app.walls.clear();
+        app.enemies.clear();
+
+        assert!(!app.can_enter(Pos { x: 0, y: 1 }, Some(Owner::Player)));
+        assert!(app.can_enter(Pos { x: 2, y: 2 }, Some(Owner::Player)));
+    }
+
+    #[test]
+    fn bullet_hits_tank_volume_not_only_center() {
+        let mut app = App::new();
+        app.enemies = vec![Tank {
+            pos: Pos { x: 10, y: 10 },
+            dir: Dir::Down,
+            cooldown: 0,
+        }];
+        app.walls.clear();
+        let mut killed_enemies = HashSet::new();
+
+        let result = app.resolve_hit(Pos { x: 10, y: 9 }, Owner::Player, &mut killed_enemies);
+
+        assert_eq!(result, HitResult::Blocked);
+        assert!(killed_enemies.contains(&0));
+        assert_eq!(app.score, 100);
+    }
+
+    #[test]
+    fn bullets_spawn_outside_tank_volume() {
+        let tank = Tank {
+            pos: Pos { x: 5, y: 5 },
+            dir: Dir::Up,
+            cooldown: 0,
+        };
+
+        assert_eq!(bullet_spawn_pos(&tank), Pos { x: 5, y: 3 });
+        assert!(!tank_footprint(tank.pos).contains(&bullet_spawn_pos(&tank)));
+    }
 }
